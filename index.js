@@ -104,6 +104,15 @@ async function findMember(guild, query) {
     ) || null;
 }
 
+// Generador de tamaño de banana con probabilidad ponderada (mínimo 1, máximo 67)
+function getRandomBananaSize() {
+    const min = 1;
+    const max = 67;
+    // Elevar Math.random() al cuadrado inclina la balanza fuertemente hacia valores más bajos
+    const randomWeighted = Math.pow(Math.random(), 2.5); 
+    return Math.floor(randomWeighted * (max - min + 1)) + min;
+}
+
 client.once('ready', () => {
     console.log(`Conectado como ${client.user.tag}`);
 });
@@ -114,7 +123,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return;
 
-    // Conectó a un canal de voz (Verde)
     if (!oldState.channelId && newState.channelId) {
         const embed = new EmbedBuilder()
             .setTitle('🔊 Voz: Usuario conectado')
@@ -127,10 +135,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             .setTimestamp();
         await sendLog(guild, embed);
     } 
-    // Desconectó de un canal de voz (Rojo)
     else if (oldState.channelId && !newState.channelId) {
         const embed = new EmbedBuilder()
-            .setTitle('🔇 Voz: Usuario desconectado')
+            .setTitle('FF Voz: Usuario desconectado')
             .setColor('#e74c3c')
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .addFields(
@@ -140,7 +147,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             .setTimestamp();
         await sendLog(guild, embed);
     } 
-    // Cambió de canal de voz (Azul)
     else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
         const embed = new EmbedBuilder()
             .setTitle('🔄 Voz: Cambio de canal')
@@ -293,7 +299,7 @@ client.on('messageCreate', async (message) => {
     // Setup de tickets
     if (command === '!ticket-setup') {
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply('⚠️ No tienes permisos de administrador para usar este comando.');
+            return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
         }
 
         const embed = new EmbedBuilder()
@@ -313,12 +319,35 @@ client.on('messageCreate', async (message) => {
         return message.delete().catch(() => {});
     }
 
-    // Sistema de Moderación: kaponi ban / mute / kick
+    // Comandos "kaponi ..."
     if (command === 'kaponi') {
         const subCommand = args.shift()?.toLowerCase();
 
+        // Comando kaponi banana
+        if (subCommand === 'banana') {
+            const targetUser = message.mentions.users.first() || message.author;
+            const size = getRandomBananaSize();
+
+            const embed = new EmbedBuilder()
+                .setTitle('🍌 Tamaño de Banana')
+                .setColor('#f1c40f')
+                .setDescription(`La banana de ${targetUser} mide **${size}cm** 🍌`)
+                .setImage('https://media.giphy.com/media/xT5LMU8rC2zL7D688g/giphy.gif');
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
         if (!subCommand || !['ban', 'mute', 'kick'].includes(subCommand)) {
             return;
+        }
+
+        // Verificación de permisos de administración para moderación
+        const requiredPermission = 
+            subCommand === 'ban' ? PermissionFlagsBits.BanMembers :
+            subCommand === 'kick' ? PermissionFlagsBits.KickMembers : PermissionFlagsBits.ModerateMembers;
+
+        if (!message.member.permissions.has(requiredPermission)) {
+            return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
         }
 
         const targetQuery = args[0];
@@ -330,10 +359,6 @@ client.on('messageCreate', async (message) => {
         
         // --- BAN ---
         if (subCommand === 'ban') {
-            if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-                return message.reply('❌ No se pudo realizar el ban: No tienes el permiso `Banear Miembros`.');
-            }
-
             const cleanId = targetQuery.replace(/[<@!>]/g, '');
             const reason = args.slice(1).join(' ') || 'Sin razón especificada';
 
@@ -371,10 +396,6 @@ client.on('messageCreate', async (message) => {
 
         // --- MUTE / TIMEOUT ---
         else if (subCommand === 'mute') {
-            if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-                return message.reply('❌ No se pudo silenciar: No tienes el permiso `Moderación de Miembros`.');
-            }
-
             if (!targetMember) {
                 return message.reply('⚠️ No se encontró al usuario en el servidor. Para aplicar mute, el usuario debe estar presente.');
             }
@@ -419,10 +440,6 @@ client.on('messageCreate', async (message) => {
 
         // --- KICK ---
         else if (subCommand === 'kick') {
-            if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-                return message.reply('❌ No se pudo expulsar: No tienes el permiso `Expulsar Miembros`.');
-            }
-
             if (!targetMember) {
                 return message.reply('⚠️ No se encontró al usuario en el servidor.');
             }
