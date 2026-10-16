@@ -64,7 +64,7 @@ function parseTime(timeStr) {
     }
 }
 
-// Auxiliar para formatear segundos a texto legible (expiración de invitaciones)
+// Auxiliar para formatear segundos a texto legible
 function formatDuration(seconds) {
     if (!seconds || seconds === 0) return 'Nunca (Infinita)';
     const days = Math.floor(seconds / 86400);
@@ -84,20 +84,16 @@ function formatDuration(seconds) {
 async function findMember(guild, query) {
     if (!query) return null;
     
-    // Limpiar mención si existe
     const cleanId = query.replace(/[<@!>]/g, '');
     
-    // Buscar por ID directa
     if (/^\d{17,19}$/.test(cleanId)) {
         try {
             return await guild.members.fetch(cleanId);
         } catch (e) {
-            // Si no está en el servidor pero se requiere para Ban
             return null;
         }
     }
 
-    // Buscar por nombre o apodo en el caché o servidor
     const members = await guild.members.fetch();
     const queryLower = query.toLowerCase();
 
@@ -118,55 +114,59 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member || oldState.member;
     if (!member || member.user.bot) return;
 
-    // Conectó a un canal de voz
+    // Conectó a un canal de voz (Verde)
     if (!oldState.channelId && newState.channelId) {
         const embed = new EmbedBuilder()
-            .setTitle('Voz: Usuario conectado')
+            .setTitle('🔊 Voz: Usuario conectado')
+            .setColor('#2ecc71')
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'Usuario', value: `${member.user.tag} (${member.id})`, inline: false },
-                { name: 'Canal', value: `<#${newState.channelId}>`, inline: false }
+                { name: '👤 Usuario', value: `${member.user.tag} (\`${member.id}\`)`, inline: false },
+                { name: '🎙️ Canal', value: `<#${newState.channelId}>`, inline: false }
             )
             .setTimestamp();
         await sendLog(guild, embed);
     } 
-    // Desconectó de un canal de voz
+    // Desconectó de un canal de voz (Rojo)
     else if (oldState.channelId && !newState.channelId) {
         const embed = new EmbedBuilder()
-            .setTitle('Voz: Usuario desconectado')
+            .setTitle('🔇 Voz: Usuario desconectado')
+            .setColor('#e74c3c')
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'Usuario', value: `${member.user.tag} (${member.id})`, inline: false },
-                { name: 'Canal anterior', value: `<#${oldState.channelId}>`, inline: false }
+                { name: '👤 Usuario', value: `${member.user.tag} (\`${member.id}\`)`, inline: false },
+                { name: '🎙️ Canal anterior', value: `<#${oldState.channelId}>`, inline: false }
             )
             .setTimestamp();
         await sendLog(guild, embed);
     } 
-    // Cambió de canal de voz
+    // Cambió de canal de voz (Azul)
     else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
         const embed = new EmbedBuilder()
-            .setTitle('Voz: Cambio de canal')
+            .setTitle('🔄 Voz: Cambio de canal')
+            .setColor('#3498db')
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .addFields(
-                { name: 'Usuario', value: `${member.user.tag} (${member.id})`, inline: false },
-                { name: 'De', value: `<#${oldState.channelId}>`, inline: true },
-                { name: 'A', value: `<#${newState.channelId}>`, inline: true }
+                { name: '👤 Usuario', value: `${member.user.tag} (\`${member.id}\`)`, inline: false },
+                { name: '⬅️ De', value: `<#${oldState.channelId}>`, inline: true },
+                { name: '➡️ A', value: `<#${newState.channelId}>`, inline: true }
             )
             .setTimestamp();
         await sendLog(guild, embed);
     }
 });
 
-// ================= LOGS DE INVITACIONES MEJORADO =================
+// ================= LOGS DE INVITACIONES =================
 client.on('inviteCreate', async (invite) => {
     const embed = new EmbedBuilder()
-        .setTitle('Invitación creada')
+        .setTitle('📩 Invitación creada')
+        .setColor('#9b59b6')
         .addFields(
-            { name: 'Creador', value: invite.inviter ? `${invite.inviter.tag} (${invite.inviter.id})` : 'Desconocido', inline: false },
-            { name: 'Código', value: invite.code, inline: true },
-            { name: 'Canal', value: `<#${invite.channel.id}>`, inline: true },
-            { name: 'Expiración', value: formatDuration(invite.maxAge), inline: true },
-            { name: 'Creada el', value: `<t:${Math.floor(invite.createdTimestamp / 1000)}:F>`, inline: false }
+            { name: '👤 Creador', value: invite.inviter ? `${invite.inviter.tag} (\`${invite.inviter.id}\`)` : 'Desconocido', inline: false },
+            { name: '🔗 Código', value: `\`${invite.code}\``, inline: true },
+            { name: '📌 Canal', value: `<#${invite.channel.id}>`, inline: true },
+            { name: '⏳ Expiración', value: formatDuration(invite.maxAge), inline: true },
+            { name: '📅 Creada el', value: `<t:${Math.floor(invite.createdTimestamp / 1000)}:F>`, inline: false }
         )
         .setTimestamp();
 
@@ -176,16 +176,18 @@ client.on('inviteCreate', async (invite) => {
 // ================= ENTRADAS, SALIDAS Y BOOSTS =================
 client.on('guildMemberAdd', async (member) => {
     const embed = new EmbedBuilder()
-        .setTitle('Usuario unido')
+        .setTitle('📥 Usuario unido')
+        .setColor('#2ecc71')
         .setDescription(`**${member.user.tag}** se ha unido al servidor.`)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .addFields({ name: 'ID', value: member.id, inline: true })
+        .addFields({ name: '🆔 ID', value: `\`${member.id}\``, inline: true })
         .setTimestamp();
 
     await sendLog(member.guild, embed);
 
     const welcomeEmbed = new EmbedBuilder()
-        .setTitle('Bienvenido')
+        .setTitle('👋 Bienvenido')
+        .setColor('#3498db')
         .setDescription(`Hola ${member}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`);
     
     if (member.guild.systemChannel) {
@@ -195,10 +197,11 @@ client.on('guildMemberAdd', async (member) => {
 
 client.on('guildMemberRemove', async (member) => {
     const embed = new EmbedBuilder()
-        .setTitle('Usuario salido')
+        .setTitle('📤 Usuario salido')
+        .setColor('#e74c3c')
         .setDescription(`**${member.user.tag}** ha salido del servidor.`)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .addFields({ name: 'ID', value: member.id, inline: true })
+        .addFields({ name: '🆔 ID', value: `\`${member.id}\``, inline: true })
         .setTimestamp();
 
     await sendLog(member.guild, embed);
@@ -207,8 +210,9 @@ client.on('guildMemberRemove', async (member) => {
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const embed = new EmbedBuilder()
-            .setTitle('Nuevo Boost')
-            .setDescription(`**${newMember.user.tag}** ha potenciado el servidor. ¡Gracias!`)
+            .setTitle('🚀 Nuevo Boost')
+            .setColor('#f1c40f')
+            .setDescription(`**${newMember.user.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
             .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
             .setTimestamp();
 
@@ -233,44 +237,55 @@ client.on('messageDelete', async (message) => {
     } catch (err) {}
 
     const embed = new EmbedBuilder()
-        .setTitle('Mensaje borrado')
+        .setTitle('🗑️ Mensaje borrado')
+        .setColor('#e67e22')
         .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .addFields(
-            { name: 'Usuario', value: `${message.author.tag} (${message.author.id})`, inline: false },
-            { name: 'Canal', value: `<#${message.channel.id}>`, inline: false },
-            { name: 'Contenido', value: message.content || '[Sin texto / Solo contenido multimedia]', inline: false },
-            { name: 'Borrado por', value: deletedBy, inline: false }
+            { name: '👤 Usuario', value: `${message.author.tag} (\`${message.author.id}\`)`, inline: false },
+            { name: '📌 Canal', value: `<#${message.channel.id}>`, inline: false },
+            { name: '💬 Contenido', value: message.content || '[Sin texto / Solo contenido multimedia]', inline: false },
+            { name: '🛠️ Borrado por', value: deletedBy, inline: false }
         )
         .setTimestamp();
 
     if (message.attachments.size > 0) {
         const attachment = message.attachments.first();
         embed.setImage(attachment.url);
-        embed.addFields({ name: 'Adjunto', value: 'El mensaje contenía una foto o archivo.', inline: false });
+        embed.addFields({ name: '🖼️ Adjunto', value: 'El mensaje contenía una foto o archivo.', inline: false });
     }
 
     await sendLog(message.guild, embed);
 });
 
-// ================= COMANDOS Y MODERACIÓN MEJORADA =================
+// ================= COMANDOS =================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
     const args = message.content.trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
+    // Comando .ping
+    if (command === '.ping') {
+        const msg = await message.channel.send('🏓 Calculando latencia...');
+        const latency = msg.createdTimestamp - message.createdTimestamp;
+        const apiLatency = Math.round(client.ws.ping);
+        return msg.edit(`🏓 Pong! Latencia del bot: **${latency}ms** | API: **${apiLatency}ms**`);
+    }
+
     // Comandos de prueba
     if (command === '!bienvenida') {
         const embed = new EmbedBuilder()
-            .setTitle('Bienvenido')
+            .setTitle('👋 Bienvenido')
+            .setColor('#3498db')
             .setDescription(`Hola ${message.author}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`);
         return message.channel.send({ embeds: [embed] });
     }
 
     if (command === '!boost') {
         const embed = new EmbedBuilder()
-            .setTitle('Nuevo Boost')
-            .setDescription(`**${message.author.tag}** ha potenciado el servidor. ¡Gracias!`)
+            .setTitle('🚀 Nuevo Boost')
+            .setColor('#f1c40f')
+            .setDescription(`**${message.author.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
             .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
         return message.channel.send({ embeds: [embed] });
     }
@@ -278,17 +293,19 @@ client.on('messageCreate', async (message) => {
     // Setup de tickets
     if (command === '!ticket-setup') {
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply('No tienes permisos de administrador para usar este comando.');
+            return message.reply('⚠️ No tienes permisos de administrador para usar este comando.');
         }
 
         const embed = new EmbedBuilder()
-            .setTitle('Soporte de Tickets')
+            .setTitle('📩 Soporte de Tickets')
+            .setColor('#34495e')
             .setDescription('Haz clic en el botón de abajo para abrir un ticket de soporte privado.');
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('open_ticket')
                 .setLabel('Crear Ticket')
+                .setEmoji('📩')
                 .setStyle(ButtonStyle.Primary)
         );
 
@@ -301,12 +318,12 @@ client.on('messageCreate', async (message) => {
         const subCommand = args.shift()?.toLowerCase();
 
         if (!subCommand || !['ban', 'mute', 'kick'].includes(subCommand)) {
-            return message.reply('Uso correcto: `kaponi [ban/mute/kick] [mención/ID/nombre] [tiempo/razón]`');
+            return;
         }
 
         const targetQuery = args[0];
         if (!targetQuery) {
-            return message.reply('Debes especificar el usuario (mención, ID o nombre).');
+            return message.reply('⚠️ Debes especificar el usuario (mención, ID o nombre).');
         }
 
         const targetMember = await findMember(message.guild, targetQuery);
@@ -314,52 +331,52 @@ client.on('messageCreate', async (message) => {
         // --- BAN ---
         if (subCommand === 'ban') {
             if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-                return message.reply('No se pudo realizar el ban: No tienes el permiso `Banear Miembros`.');
+                return message.reply('❌ No se pudo realizar el ban: No tienes el permiso `Banear Miembros`.');
             }
 
             const cleanId = targetQuery.replace(/[<@!>]/g, '');
             const reason = args.slice(1).join(' ') || 'Sin razón especificada';
 
-            // Comprobación de jerarquía si el miembro está en el servidor
             if (targetMember) {
                 if (targetMember.id === message.guild.ownerId) {
-                    return message.reply('No se puede banear a este usuario: Es el dueño del servidor.');
+                    return message.reply('❌ No se puede banear a este usuario: Es el dueño del servidor.');
                 }
                 if (targetMember.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
-                    return message.reply('No se pudo banear al usuario: Su rol es igual o superior al tuyo en la jerarquía.');
+                    return message.reply('❌ No se pudo banear al usuario: Su rol es igual o superior al tuyo en la jerarquía.');
                 }
                 if (!targetMember.bannable) {
-                    return message.reply('No se pudo banear al usuario: El rol más alto del bot está por debajo del rol del usuario que intentas banear.');
+                    return message.reply('❌ No se pudo banear al usuario: El rol más alto del bot está por debajo del rol del usuario que intentas banear.');
                 }
             }
 
             try {
                 await message.guild.members.ban(targetMember ? targetMember.id : cleanId, { reason });
                 const tagUser = targetMember ? targetMember.user.tag : cleanId;
-                message.channel.send(`Usuario **${tagUser}** baneado correctamente.`);
+                message.channel.send(`🔨 Usuario **${tagUser}** baneado correctamente.`);
 
                 const logEmbed = new EmbedBuilder()
-                    .setTitle('Sanción: Ban')
+                    .setTitle('🔨 Sanción: Ban')
+                    .setColor('#c0392b')
                     .addFields(
-                        { name: 'Usuario', value: `${tagUser} (${cleanId})`, inline: true },
-                        { name: 'Moderador', value: message.author.tag, inline: true },
-                        { name: 'Razón', value: reason, inline: false }
+                        { name: '👤 Usuario', value: `${tagUser} (\`${cleanId}\`)`, inline: true },
+                        { name: '🛡️ Moderador', value: message.author.tag, inline: true },
+                        { name: '📄 Razón', value: reason, inline: false }
                     )
                     .setTimestamp();
                 await sendLog(message.guild, logEmbed);
             } catch (err) {
-                message.reply(`Error al intentar banear: ${err.message || 'Verifica que la ID sea válida o que el bot tenga permisos.'}`);
+                message.reply(`❌ Error al intentar banear: ${err.message || 'Verifica que la ID sea válida o que el bot tenga permisos.'}`);
             }
         }
 
         // --- MUTE / TIMEOUT ---
         else if (subCommand === 'mute') {
             if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-                return message.reply('No se pudo silenciar: No tienes el permiso `Moderación de Miembros`.');
+                return message.reply('❌ No se pudo silenciar: No tienes el permiso `Moderación de Miembros`.');
             }
 
             if (!targetMember) {
-                return message.reply('No se encontró al usuario en el servidor. Para aplicar mute, el usuario debe estar presente.');
+                return message.reply('⚠️ No se encontró al usuario en el servidor. Para aplicar mute, el usuario debe estar presente.');
             }
 
             const timeArg = args[1];
@@ -367,75 +384,77 @@ client.on('messageCreate', async (message) => {
             const reason = args.slice(2).join(' ') || 'Sin razón especificada';
 
             if (!duration) {
-                return message.reply('Formato de tiempo inválido. Usa por ejemplo: `1s`, `5m`, `2h` o `1d`. Ejemplo: `kaponi mute @pepe 10m Spam`');
+                return message.reply('⚠️ Formato de tiempo inválido. Usa por ejemplo: `1s`, `5m`, `2h` o `1d`. Ejemplo: `kaponi mute @pepe 10m Spam`');
             }
 
             if (targetMember.id === message.guild.ownerId) {
-                return message.reply('No se puede silenciar a este usuario: Es el dueño del servidor.');
+                return message.reply('❌ No se puede silenciar a este usuario: Es el dueño del servidor.');
             }
             if (targetMember.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
-                return message.reply('No se pudo silenciar al usuario: Posee un rol igual o superior al tuyo.');
+                return message.reply('❌ No se pudo silenciar al usuario: Posee un rol igual o superior al tuyo.');
             }
             if (!targetMember.moderatable) {
-                return message.reply('No se pudo silenciar al usuario: El rol del bot está por debajo del rol de este usuario.');
+                return message.reply('❌ No se pudo silenciar al usuario: El rol del bot está por debajo del rol de este usuario.');
             }
 
             try {
                 await targetMember.timeout(duration, reason);
-                message.channel.send(`Usuario **${targetMember.user.tag}** silenciado por ${timeArg}.`);
+                message.channel.send(`🤐 Usuario **${targetMember.user.tag}** silenciado por ${timeArg}.`);
 
                 const logEmbed = new EmbedBuilder()
-                    .setTitle('Sanción: Mute / Timeout')
+                    .setTitle('🤐 Sanción: Mute / Timeout')
+                    .setColor('#d35400')
                     .addFields(
-                        { name: 'Usuario', value: `${targetMember.user.tag} (${targetMember.id})`, inline: true },
-                        { name: 'Moderador', value: message.author.tag, inline: true },
-                        { name: 'Duración', value: timeArg, inline: true },
-                        { name: 'Razón', value: reason, inline: false }
+                        { name: '👤 Usuario', value: `${targetMember.user.tag} (\`${targetMember.id}\`)`, inline: true },
+                        { name: '🛡️ Moderador', value: message.author.tag, inline: true },
+                        { name: '⏳ Duración', value: timeArg, inline: true },
+                        { name: '📄 Razón', value: reason, inline: false }
                     )
                     .setTimestamp();
                 await sendLog(message.guild, logEmbed);
             } catch (err) {
-                message.reply(`Error al silenciar al usuario: ${err.message}`);
+                message.reply(`❌ Error al silenciar al usuario: ${err.message}`);
             }
         }
 
         // --- KICK ---
         else if (subCommand === 'kick') {
             if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-                return message.reply('No se pudo expulsar: No tienes el permiso `Expulsar Miembros`.');
+                return message.reply('❌ No se pudo expulsar: No tienes el permiso `Expulsar Miembros`.');
             }
 
             if (!targetMember) {
-                return message.reply('No se encontró al usuario en el servidor.');
+                return message.reply('⚠️ No se encontró al usuario en el servidor.');
             }
 
             const reason = args.slice(1).join(' ') || 'Sin razón especificada';
 
             if (targetMember.id === message.guild.ownerId) {
-                return message.reply('No se puede expulsar a este usuario: Es el dueño del servidor.');
+                return message.reply('❌ No se puede expulsar a este usuario: Es el dueño del servidor.');
             }
             if (targetMember.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
-                return message.reply('No se pudo expulsar al usuario: Su rol es igual o superior al tuyo.');
+                return message.reply('❌ No se pudo expulsar al usuario: Su rol es igual o superior al tuyo.');
             }
             if (!targetMember.kickable) {
-                return message.reply('No se pudo expulsar al usuario: El rol del bot está por debajo del rol de este usuario.');
+                return message.reply('❌ No se pudo expulsar al usuario: El rol del bot está por debajo del rol de este usuario.');
             }
 
             try {
                 await targetMember.kick(reason);
-                message.channel.send(`Usuario **${targetMember.user.tag}** expulsado correctamente.`);
+                message.channel.send(`👢 Usuario **${targetMember.user.tag}** expulsado correctamente.`);
 
                 const logEmbed = new EmbedBuilder()
-                    .setTitle('Sanción: Kick')
+                    .setTitle('👢 Sanción: Kick')
+                    .setColor('#e67e22')
                     .addFields(
-                        { name: 'Usuario', value: `${targetMember.user.tag} (${targetMember.id})`, inline: true },
-                        { name: 'Moderador', value: message.author.tag, inline: true },
-                        { name: 'Razón', value: reason, inline: false }
+                        { name: '👤 Usuario', value: `${targetMember.user.tag} (\`${targetMember.id}\`)`, inline: true },
+                        { name: '🛡️ Moderador', value: message.author.tag, inline: true },
+                        { name: '📄 Razón', value: reason, inline: false }
                     )
                     .setTimestamp();
                 await sendLog(message.guild, logEmbed);
             } catch (err) {
-                message.reply(`Error al expulsar al usuario: ${err.message}`);
+                message.reply(`❌ Error al expulsar al usuario: ${err.message}`);
             }
         }
     }
@@ -469,23 +488,25 @@ client.on('interactionCreate', async (interaction) => {
                 new ButtonBuilder()
                     .setCustomId('close_ticket')
                     .setLabel('Cerrar Ticket')
+                    .setEmoji('🔒')
                     .setStyle(ButtonStyle.Danger)
             );
 
             const ticketEmbed = new EmbedBuilder()
-                .setTitle(`Ticket de ${member.user.tag}`)
+                .setTitle(`📩 Ticket de ${member.user.tag}`)
+                .setColor('#2ecc71')
                 .setDescription('Describe tu consulta o problema. Un miembro del equipo te atenderá pronto.');
 
             await channel.send({ content: `${member}`, embeds: [ticketEmbed], components: [closeRow] });
-            await interaction.reply({ content: `Ticket creado: <#${channel.id}>`, ephemeral: true });
+            await interaction.reply({ content: `✅ Ticket creado: <#${channel.id}>`, ephemeral: true });
         } catch (err) {
-            await interaction.reply({ content: 'Hubo un error al crear el ticket.', ephemeral: true });
+            await interaction.reply({ content: '❌ Hubo un error al crear el ticket.', ephemeral: true });
         }
     }
 
     if (interaction.customId === 'close_ticket') {
         const channel = interaction.channel;
-        await interaction.reply({ content: 'Cerrando ticket en 5 segundos...' });
+        await interaction.reply({ content: '🔒 Cerrando ticket en 5 segundos...' });
         setTimeout(() => {
             channel.delete().catch(() => {});
         }, 5000);
