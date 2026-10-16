@@ -9,7 +9,10 @@ const {
     PermissionFlagsBits, 
     ChannelType, 
     AuditLogEvent,
-    WebhookClient 
+    WebhookClient,
+    SlashCommandBuilder,
+    REST,
+    Routes
 } = require('discord.js');
 require('dotenv').config();
 
@@ -26,8 +29,15 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember]
 });
 
-// ID del canal de logs
+// IDs de canales fijos
 const LOG_CHANNEL_ID = '1560757735866507274';
+const WELCOME_CHANNEL_ID = '1560719843504685067';
+const LEAVE_CHANNEL_ID = '1560719911301554266';
+const BOOST_CHANNEL_ID = '1560720028243075092';
+
+// Imágenes configuradas
+const WELCOME_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1560711090965323806/1560783372991733791/7371368a0c73866feb45597556de6309.jpg?ex=6ad3f84a&is=6ad2a6ca&hm=331c30444fc1a423a833c428db8e9fee90ea8fdec95a4da48219c2020aa8f3ab&';
+const LEAVE_IMAGE_URL = 'https://cdn.discordapp.com/attachments/1560711090965323806/1560785955261251625/bd4af2575ed18c31782687eff1383565.jpg?ex=6ad3fab1&is=6ad2a931&hm=5d53b6899e155311c5eef229786bd52b08bfc6474661ef47df81c30a2f3118d6&';
 
 // Webhook opcional
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
@@ -80,10 +90,9 @@ function formatDuration(seconds) {
     return result.join(' ');
 }
 
-// Búsqueda flexible de miembros (por mención, ID o nombre/apodo)
+// Búsqueda flexible de miembros
 async function findMember(guild, query) {
     if (!query) return null;
-    
     const cleanId = query.replace(/[<@!>]/g, '');
     
     if (/^\d{17,19}$/.test(cleanId)) {
@@ -104,7 +113,7 @@ async function findMember(guild, query) {
     ) || null;
 }
 
-// Generador de tamaño de banana con probabilidad ponderada (mínimo 1, máximo 32)
+// Generador de tamaño de banana
 function getRandomBananaSize() {
     const min = 1;
     const max = 32;
@@ -112,11 +121,53 @@ function getRandomBananaSize() {
     return Math.floor(randomWeighted * (max - min + 1)) + min;
 }
 
-client.once('ready', () => {
+// Registro de Slash Command /embed
+const commands = [
+    new SlashCommandBuilder()
+        .setName('embed')
+        .setDescription('Crea y envía un embed personalizado en el canal')
+        .addStringOption(option => 
+            option.setName('descripcion')
+                .setDescription('Descripción principal dentro del embed')
+                .setRequired(true))
+        .addStringOption(option => 
+            option.setName('titulo')
+                .setDescription('Título del embed')
+                .setRequired(false))
+        .addStringOption(option => 
+            option.setName('color')
+                .setDescription('Color en formato HEX (ejemplo: #ff0000 o #3498db)')
+                .setRequired(false))
+        .addStringOption(option => 
+            option.setName('texto_fuera')
+                .setDescription('Texto que irá fuera del embed (menciones, avisos, etc.)')
+                .setRequired(false))
+        .addStringOption(option => 
+            option.setName('imagen_url')
+                .setDescription('URL de una imagen para la parte inferior del embed')
+                .setRequired(false))
+        .addStringOption(option => 
+            option.setName('footer')
+                .setDescription('Texto al pie del embed')
+                .setRequired(false))
+];
+
+client.once('ready', async () => {
     console.log(`Conectado como ${client.user.tag}`);
+
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+    try {
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
+        console.log('Comando /embed registrado globalmente.');
+    } catch (error) {
+        console.error('Error al registrar Slash Commands:', error);
+    }
 });
 
-// ================= LOGS DE LLAMADAS Y CANALES DE VOZ =================
+// ================= LOGS DE VOZ =================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const guild = newState.guild || oldState.guild;
     const member = newState.member || oldState.member;
@@ -161,7 +212,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
 });
 
-// ================= LOGS DE INVITACIONES =================
+// ================= LOGS DE INVITACIONES CREADAS =================
 client.on('inviteCreate', async (invite) => {
     const embed = new EmbedBuilder()
         .setTitle('📩 Invitación creada')
@@ -180,7 +231,8 @@ client.on('inviteCreate', async (invite) => {
 
 // ================= ENTRADAS, SALIDAS Y BOOSTS =================
 client.on('guildMemberAdd', async (member) => {
-    const embed = new EmbedBuilder()
+    // Log de entrada
+    const logEmbed = new EmbedBuilder()
         .setTitle('📥 Usuario unido')
         .setColor('#2ecc71')
         .setDescription(`**${member.user.tag}** se ha unido al servidor.`)
@@ -188,23 +240,27 @@ client.on('guildMemberAdd', async (member) => {
         .addFields({ name: '🆔 ID', value: `\`${member.id}\``, inline: true })
         .setTimestamp();
 
-    await sendLog(member.guild, embed);
+    await sendLog(member.guild, logEmbed);
 
-    const welcomeEmbed = new EmbedBuilder()
-        .setTitle('👋 ¡Bienvenido a la comunidad!')
-        .setColor('#f1c40f')
-        .setDescription(`¡Hola ${member}! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setFooter({ text: 'LikeKaponi Community' })
-        .setTimestamp();
-    
-    if (member.guild.systemChannel) {
-        member.guild.systemChannel.send({ embeds: [welcomeEmbed] }).catch(() => {});
+    // Mensaje automático de bienvenida
+    const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID);
+    if (welcomeChannel) {
+        const welcomeEmbed = new EmbedBuilder()
+            .setTitle('👋 ¡Bienvenido a la comunidad!')
+            .setColor('#f1c40f')
+            .setDescription(`¡Hola ${member}! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
+            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+            .setImage(WELCOME_IMAGE_URL)
+            .setFooter({ text: 'LikeKaponi Community' })
+            .setTimestamp();
+
+        welcomeChannel.send({ content: `¡Bienvenido ${member}!`, embeds: [welcomeEmbed] }).catch(() => {});
     }
 });
 
 client.on('guildMemberRemove', async (member) => {
-    const embed = new EmbedBuilder()
+    // Log de salida en el canal de administración
+    const logEmbed = new EmbedBuilder()
         .setTitle('📤 Usuario salido')
         .setColor('#e74c3c')
         .setDescription(`**${member.user.tag}** ha salido del servidor.`)
@@ -212,20 +268,47 @@ client.on('guildMemberRemove', async (member) => {
         .addFields({ name: '🆔 ID', value: `\`${member.id}\``, inline: true })
         .setTimestamp();
 
-    await sendLog(member.guild, embed);
+    await sendLog(member.guild, logEmbed);
+
+    // Mensaje automático de despedida en el canal específico
+    const leaveChannel = member.guild.channels.cache.get(LEAVE_CHANNEL_ID);
+    if (leaveChannel) {
+        const leaveEmbed = new EmbedBuilder()
+            .setTitle('👋 ¡Hasta pronto!')
+            .setColor('#e74c3c')
+            .setDescription(`**${member.user.tag}** ha decidido dejar el servidor.\n\nLe agradecemos por el tiempo que compartió con nosotros en la comunidad. Le deseamos muchísimo éxito en todos sus proyectos futuros y esperamos que le vaya excelente en su camino. ¡Las puertas siempre estarán abiertas si decide volver!`)
+            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+            .setImage(LEAVE_IMAGE_URL)
+            .setFooter({ text: 'LikeKaponi Community' })
+            .setTimestamp();
+
+        leaveChannel.send({ content: `Un usuario nos ha dejado: **${member.user.tag}**`, embeds: [leaveEmbed] }).catch(() => {});
+    }
 });
 
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
-        const embed = new EmbedBuilder()
-            .setTitle('🚀 ¡Un nuevo Boost ha llegado!')
+        const logEmbed = new EmbedBuilder()
+            .setTitle('🚀 Nuevo Boost')
             .setColor('#9b59b6')
-            .setDescription(`¡Muchísimas gracias a **${newMember.user.tag}** por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
+            .setDescription(`**${newMember.user.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
             .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
-            .setFooter({ text: 'LikeKaponi Community' })
             .setTimestamp();
 
-        await sendLog(newMember.guild, embed);
+        await sendLog(newMember.guild, logEmbed);
+
+        const boostChannel = newMember.guild.channels.cache.get(BOOST_CHANNEL_ID);
+        if (boostChannel) {
+            const boostEmbed = new EmbedBuilder()
+                .setTitle('🚀 ¡Un nuevo Boost ha llegado!')
+                .setColor('#9b59b6')
+                .setDescription(`¡Muchísimas gracias a **${newMember.user.tag}** por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
+                .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
+                .setFooter({ text: 'LikeKaponi Community' })
+                .setTimestamp();
+
+            boostChannel.send({ content: `¡Gracias por el boost ${newMember}! 🚀`, embeds: [boostEmbed] }).catch(() => {});
+        }
     }
 });
 
@@ -288,9 +371,22 @@ client.on('messageCreate', async (message) => {
             .setColor('#f1c40f')
             .setDescription(`¡Hola ${message.author}! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
             .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+            .setImage(WELCOME_IMAGE_URL)
             .setFooter({ text: 'LikeKaponi Community' })
             .setTimestamp();
-        return message.channel.send({ embeds: [embed] });
+        return message.channel.send({ content: `¡Bienvenido ${message.author}!`, embeds: [embed] });
+    }
+
+    if (command === '.despedida') {
+        const embed = new EmbedBuilder()
+            .setTitle('👋 ¡Hasta pronto!')
+            .setColor('#e74c3c')
+            .setDescription(`**${message.author.tag}** ha decidido dejar el servidor.\n\nLe agradecemos por el tiempo que compartió con nosotros en la comunidad. Le deseamos muchísimo éxito en todos sus proyectos futuros y esperamos que le vaya excelente en su camino. ¡Las puertas siempre estarán abiertas si decide volver!`)
+            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+            .setImage(LEAVE_IMAGE_URL)
+            .setFooter({ text: 'LikeKaponi Community' })
+            .setTimestamp();
+        return message.channel.send({ content: `Un usuario nos ha dejado: **${message.author.tag}**`, embeds: [embed] });
     }
 
     if (command === '.boost') {
@@ -301,7 +397,7 @@ client.on('messageCreate', async (message) => {
             .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
             .setFooter({ text: 'LikeKaponi Community' })
             .setTimestamp();
-        return message.channel.send({ embeds: [embed] });
+        return message.channel.send({ content: `¡Gracias por el boost ${message.author}! 🚀`, embeds: [embed] });
     }
 
     // Setup de tickets
@@ -331,9 +427,9 @@ client.on('messageCreate', async (message) => {
     if (command === 'kaponi') {
         const subCommand = args.shift()?.toLowerCase();
 
-        // Comando kaponi purge (1 - 100)
+        // Comando kaponi purge
         if (subCommand === 'purge') {
-            if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+            if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
                 return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
             }
 
@@ -343,7 +439,6 @@ client.on('messageCreate', async (message) => {
             }
 
             try {
-                // Borrar el mensaje del comando + los mensajes indicados
                 await message.delete().catch(() => {});
                 const deleted = await message.channel.bulkDelete(amount, true);
 
@@ -366,7 +461,7 @@ client.on('messageCreate', async (message) => {
             }
         }
 
-        // Comando kaponi helpadmin (Solo Administradores)
+        // Comando kaponi helpadmin
         if (subCommand === 'helpadmin') {
             if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
@@ -379,7 +474,7 @@ client.on('messageCreate', async (message) => {
                 .addFields(
                     { 
                         name: '🛡️ Moderación / Administración', 
-                        value: '`kaponi ban [usuario] [razón]` - Banea a un usuario\n`kaponi mute [usuario] [tiempo] [razón]` - Silencia temporalmente (ej. 1s, 5m, 2h, 1d)\n`kaponi kick [usuario] [razón]` - Expulsa a un usuario\n`kaponi purge [1-100]` - Borra masivamente hasta 100 mensajes\n`!ticket-setup` - Despliega el panel para abrir tickets' 
+                        value: '`kaponi ban [usuario] [razón]` - Banea a un usuario\n`kaponi mute [usuario] [tiempo] [razón]` - Silencia temporalmente (ej. 1s, 5m, 2h, 1d)\n`kaponi kick [usuario] [razón]` - Expulsa a un usuario\n`kaponi purge [1-100]` - Borra masivamente hasta 100 mensajes\n`!ticket-setup` - Despliega el panel para abrir tickets\n`/embed` - Comando de Slash para crear embeds personalizados' 
                     },
                     { 
                         name: '🍌 Entretenimiento', 
@@ -391,7 +486,7 @@ client.on('messageCreate', async (message) => {
                     },
                     { 
                         name: '🧪 Pruebas', 
-                        value: '`.bienvenida` - Muestra un ejemplo del mensaje de bienvenida\n`.boost` - Muestra un ejemplo del mensaje de boost' 
+                        value: '`.bienvenida` - Muestra un ejemplo de bienvenida\n`.despedida` - Muestra un ejemplo de salida\n`.boost` - Muestra un ejemplo de boost' 
                     }
                 )
                 .setFooter({ text: 'LikeKaponi Bot • Sistema de Administración' })
@@ -426,12 +521,13 @@ client.on('messageCreate', async (message) => {
             return;
         }
 
-        // Verificación de permisos de administración para moderación
+        // Verificación de permisos
+        const hasAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
         const requiredPermission = 
             subCommand === 'ban' ? PermissionFlagsBits.BanMembers :
             subCommand === 'kick' ? PermissionFlagsBits.KickMembers : PermissionFlagsBits.ModerateMembers;
 
-        if (!message.member.permissions.has(requiredPermission)) {
+        if (!hasAdmin && !message.member.permissions.has(requiredPermission)) {
             return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
         }
 
@@ -562,56 +658,90 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ================= SISTEMA DE TICKETS =================
+// ================= INTERACCIONES (SLASH COMMAND /EMBED Y TICKETS) =================
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton()) return;
+    if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === 'embed') {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+                return interaction.reply({ content: 'porque intentas usar comandos de administracion bro, te voy a tocar', ephemeral: true });
+            }
 
-    if (interaction.customId === 'open_ticket') {
-        const guild = interaction.guild;
-        const member = interaction.member;
+            const descripcion = interaction.options.getString('descripcion');
+            const titulo = interaction.options.getString('titulo');
+            const color = interaction.options.getString('color') || '#2b2d31';
+            const textoFuera = interaction.options.getString('texto_fuera');
+            const imagenUrl = interaction.options.getString('imagen_url');
+            const footer = interaction.options.getString('footer');
 
-        try {
-            const channel = await guild.channels.create({
-                name: `ticket-${member.user.username}`,
-                type: ChannelType.GuildText,
-                permissionOverwrites: [
-                    {
-                        id: guild.id,
-                        denied: [PermissionFlagsBits.ViewChannel],
-                    },
-                    {
-                        id: member.id,
-                        allowed: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-                    },
-                ],
-            });
+            const embed = new EmbedBuilder().setDescription(descripcion);
 
-            const closeRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('close_ticket')
-                    .setLabel('Cerrar Ticket')
-                    .setEmoji('🔒')
-                    .setStyle(ButtonStyle.Danger)
-            );
+            if (titulo) embed.setTitle(titulo);
+            
+            if (/^#([0-9A-F]{3}){1,2}$/i.test(color)) {
+                embed.setColor(color);
+            } else {
+                embed.setColor('#2b2d31');
+            }
 
-            const ticketEmbed = new EmbedBuilder()
-                .setTitle(`📩 Ticket de ${member.user.tag}`)
-                .setColor('#2ecc71')
-                .setDescription('Describe tu consulta o problema. Un miembro del equipo te atenderá pronto.');
+            if (imagenUrl) embed.setImage(imagenUrl);
+            if (footer) embed.setFooter({ text: footer });
 
-            await channel.send({ content: `${member}`, embeds: [ticketEmbed], components: [closeRow] });
-            await interaction.reply({ content: `✅ Ticket creado: <#${channel.id}>`, ephemeral: true });
-        } catch (err) {
-            await interaction.reply({ content: '❌ Hubo un error al crear el ticket.', ephemeral: true });
+            const payload = { embeds: [embed] };
+            if (textoFuera) payload.content = textoFuera;
+
+            await interaction.channel.send(payload);
+            return interaction.reply({ content: '✅ Embed enviado correctamente.', ephemeral: true });
         }
     }
 
-    if (interaction.customId === 'close_ticket') {
-        const channel = interaction.channel;
-        await interaction.reply({ content: '🔒 Cerrando ticket en 5 segundos...' });
-        setTimeout(() => {
-            channel.delete().catch(() => {});
-        }, 5000);
+    if (interaction.isButton()) {
+        if (interaction.customId === 'open_ticket') {
+            const guild = interaction.guild;
+            const member = interaction.member;
+
+            try {
+                const channel = await guild.channels.create({
+                    name: `ticket-${member.user.username}`,
+                    type: ChannelType.GuildText,
+                    permissionOverwrites: [
+                        {
+                            id: guild.id,
+                            denied: [PermissionFlagsBits.ViewChannel],
+                        },
+                        {
+                            id: member.id,
+                            allowed: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+                        },
+                    ],
+                });
+
+                const closeRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('close_ticket')
+                        .setLabel('Cerrar Ticket')
+                        .setEmoji('🔒')
+                        .setStyle(ButtonStyle.Danger)
+                );
+
+                const ticketEmbed = new EmbedBuilder()
+                    .setTitle(`📩 Ticket de ${member.user.tag}`)
+                    .setColor('#2ecc71')
+                    .setDescription('Describe tu consulta o problema. Un miembro del equipo te atenderá pronto.');
+
+                await channel.send({ content: `${member}`, embeds: [ticketEmbed], components: [closeRow] });
+                await interaction.reply({ content: `✅ Ticket creado: <#${channel.id}>`, ephemeral: true });
+            } catch (err) {
+                await interaction.reply({ content: '❌ Hubo un error al crear el ticket.', ephemeral: true });
+            }
+        }
+
+        if (interaction.customId === 'close_ticket') {
+            const channel = interaction.channel;
+            await interaction.reply({ content: '🔒 Cerrando ticket en 5 segundos...' });
+            setTimeout(() => {
+                channel.delete().catch(() => {});
+            }, 5000);
+        }
     }
 });
 
