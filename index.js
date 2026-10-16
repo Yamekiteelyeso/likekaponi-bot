@@ -104,11 +104,10 @@ async function findMember(guild, query) {
     ) || null;
 }
 
-// Generador de tamaño de banana con probabilidad ponderada (mínimo 1, máximo 67)
+// Generador de tamaño de banana con probabilidad ponderada (mínimo 1, máximo 32)
 function getRandomBananaSize() {
     const min = 1;
-    const max = 67;
-    // Elevar Math.random() al cuadrado inclina la balanza fuertemente hacia valores más bajos
+    const max = 32;
     const randomWeighted = Math.pow(Math.random(), 2.5); 
     return Math.floor(randomWeighted * (max - min + 1)) + min;
 }
@@ -137,7 +136,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     } 
     else if (oldState.channelId && !newState.channelId) {
         const embed = new EmbedBuilder()
-            .setTitle('FF Voz: Usuario desconectado')
+            .setTitle('🔇 Voz: Usuario desconectado')
             .setColor('#e74c3c')
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .addFields(
@@ -193,8 +192,9 @@ client.on('guildMemberAdd', async (member) => {
 
     const welcomeEmbed = new EmbedBuilder()
         .setTitle('👋 Bienvenido')
-        .setColor('#3498db')
-        .setDescription(`Hola ${member}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`);
+        .setColor('#f1c40f')
+        .setDescription(`Hola ${member}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`)
+        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }));
     
     if (member.guild.systemChannel) {
         member.guild.systemChannel.send({ embeds: [welcomeEmbed] }).catch(() => {});
@@ -217,7 +217,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const embed = new EmbedBuilder()
             .setTitle('🚀 Nuevo Boost')
-            .setColor('#f1c40f')
+            .setColor('#9b59b6')
             .setDescription(`**${newMember.user.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
             .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
             .setTimestamp();
@@ -278,19 +278,20 @@ client.on('messageCreate', async (message) => {
         return msg.edit(`🏓 Pong! Latencia del bot: **${latency}ms** | API: **${apiLatency}ms**`);
     }
 
-    // Comandos de prueba
-    if (command === '!bienvenida') {
+    // Comandos de prueba con punto
+    if (command === '.bienvenida') {
         const embed = new EmbedBuilder()
             .setTitle('👋 Bienvenido')
-            .setColor('#3498db')
-            .setDescription(`Hola ${message.author}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`);
+            .setColor('#f1c40f')
+            .setDescription(`Hola ${message.author}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`)
+            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
         return message.channel.send({ embeds: [embed] });
     }
 
-    if (command === '!boost') {
+    if (command === '.boost') {
         const embed = new EmbedBuilder()
             .setTitle('🚀 Nuevo Boost')
-            .setColor('#f1c40f')
+            .setColor('#9b59b6')
             .setDescription(`**${message.author.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
             .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
         return message.channel.send({ embeds: [embed] });
@@ -323,7 +324,15 @@ client.on('messageCreate', async (message) => {
     if (command === 'kaponi') {
         const subCommand = args.shift()?.toLowerCase();
 
-        // Comando kaponi banana
+        // Comando kaponi ping
+        if (subCommand === 'ping') {
+            const msg = await message.channel.send('🏓 Calculando latencia...');
+            const latency = msg.createdTimestamp - message.createdTimestamp;
+            const apiLatency = Math.round(client.ws.ping);
+            return msg.edit(`🏓 Pong! Latencia del bot: **${latency}ms** | API: **${apiLatency}ms**`);
+        }
+
+        // Comando kaponi banana (de 1 a 32cm)
         if (subCommand === 'banana') {
             const targetUser = message.mentions.users.first() || message.author;
             const size = getRandomBananaSize();
@@ -332,7 +341,7 @@ client.on('messageCreate', async (message) => {
                 .setTitle('🍌 Tamaño de Banana')
                 .setColor('#f1c40f')
                 .setDescription(`La banana de ${targetUser} mide **${size}cm** 🍌`)
-                .setImage('https://media.giphy.com/media/xT5LMU8rC2zL7D688g/giphy.gif');
+                .setImage('https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&auto=format&fit=crop&q=60');
 
             return message.channel.send({ embeds: [embed] });
         }
