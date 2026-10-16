@@ -191,10 +191,12 @@ client.on('guildMemberAdd', async (member) => {
     await sendLog(member.guild, embed);
 
     const welcomeEmbed = new EmbedBuilder()
-        .setTitle('👋 Bienvenido')
+        .setTitle('👋 ¡Bienvenido a la comunidad!')
         .setColor('#f1c40f')
-        .setDescription(`Hola ${member}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`)
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }));
+        .setDescription(`¡Hola ${member}! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
+        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+        .setFooter({ text: 'LikeKaponi Community' })
+        .setTimestamp();
     
     if (member.guild.systemChannel) {
         member.guild.systemChannel.send({ embeds: [welcomeEmbed] }).catch(() => {});
@@ -216,10 +218,11 @@ client.on('guildMemberRemove', async (member) => {
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     if (!oldMember.premiumSince && newMember.premiumSince) {
         const embed = new EmbedBuilder()
-            .setTitle('🚀 Nuevo Boost')
+            .setTitle('🚀 ¡Un nuevo Boost ha llegado!')
             .setColor('#9b59b6')
-            .setDescription(`**${newMember.user.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
+            .setDescription(`¡Muchísimas gracias a **${newMember.user.tag}** por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
             .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
+            .setFooter({ text: 'LikeKaponi Community' })
             .setTimestamp();
 
         await sendLog(newMember.guild, embed);
@@ -281,19 +284,23 @@ client.on('messageCreate', async (message) => {
     // Comandos de prueba con punto
     if (command === '.bienvenida') {
         const embed = new EmbedBuilder()
-            .setTitle('👋 Bienvenido')
+            .setTitle('👋 ¡Bienvenido a la comunidad!')
             .setColor('#f1c40f')
-            .setDescription(`Hola ${message.author}, bienvenido al servidor. Esperamos que disfrutes tu estancia.`)
-            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
+            .setDescription(`¡Hola ${message.author}! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
+            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+            .setFooter({ text: 'LikeKaponi Community' })
+            .setTimestamp();
         return message.channel.send({ embeds: [embed] });
     }
 
     if (command === '.boost') {
         const embed = new EmbedBuilder()
-            .setTitle('🚀 Nuevo Boost')
+            .setTitle('🚀 ¡Un nuevo Boost ha llegado!')
             .setColor('#9b59b6')
-            .setDescription(`**${message.author.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
-            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
+            .setDescription(`¡Muchísimas gracias a **${message.author.tag}** por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
+            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+            .setFooter({ text: 'LikeKaponi Community' })
+            .setTimestamp();
         return message.channel.send({ embeds: [embed] });
     }
 
@@ -323,6 +330,75 @@ client.on('messageCreate', async (message) => {
     // Comandos "kaponi ..."
     if (command === 'kaponi') {
         const subCommand = args.shift()?.toLowerCase();
+
+        // Comando kaponi purge (1 - 100)
+        if (subCommand === 'purge') {
+            if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+                return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
+            }
+
+            const amount = parseInt(args[0]);
+            if (isNaN(amount) || amount < 1 || amount > 100) {
+                return message.reply('⚠️ Especifica un número válido entre **1 y 100** para borrar.');
+            }
+
+            try {
+                // Borrar el mensaje del comando + los mensajes indicados
+                await message.delete().catch(() => {});
+                const deleted = await message.channel.bulkDelete(amount, true);
+
+                const confirmMsg = await message.channel.send(`🧹 Se han borrado **${deleted.size}** mensajes correctamente.`);
+                setTimeout(() => confirmMsg.delete().catch(() => {}), 4000);
+
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('🧹 Purga de Mensajes')
+                    .setColor('#e67e22')
+                    .addFields(
+                        { name: '📌 Canal', value: `<#${message.channel.id}>`, inline: true },
+                        { name: '🔢 Cantidad', value: `${deleted.size} mensajes`, inline: true },
+                        { name: '🛡️ Moderador', value: message.author.tag, inline: false }
+                    )
+                    .setTimestamp();
+                await sendLog(message.guild, logEmbed);
+                return;
+            } catch (err) {
+                return message.reply(`❌ No se pudieron borrar los mensajes: ${err.message || 'Los mensajes de más de 14 días no se pueden borrar en masa.'}`);
+            }
+        }
+
+        // Comando kaponi helpadmin (Solo Administradores)
+        if (subCommand === 'helpadmin') {
+            if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
+            }
+
+            const helpEmbed = new EmbedBuilder()
+                .setTitle('⚙️ Panel de Comandos - LikeKaponi Bot')
+                .setColor('#2c3e50')
+                .setDescription('Lista completa de comandos disponibles en el bot:')
+                .addFields(
+                    { 
+                        name: '🛡️ Moderación / Administración', 
+                        value: '`kaponi ban [usuario] [razón]` - Banea a un usuario\n`kaponi mute [usuario] [tiempo] [razón]` - Silencia temporalmente (ej. 1s, 5m, 2h, 1d)\n`kaponi kick [usuario] [razón]` - Expulsa a un usuario\n`kaponi purge [1-100]` - Borra masivamente hasta 100 mensajes\n`!ticket-setup` - Despliega el panel para abrir tickets' 
+                    },
+                    { 
+                        name: '🍌 Entretenimiento', 
+                        value: '`kaponi banana [@usuario]` - Mide el tamaño de la banana (1cm a 32cm)' 
+                    },
+                    { 
+                        name: '📊 Utilidad y Latencia', 
+                        value: '`kaponi ping` - Consulta la latencia del bot y la API\n`.ping` - Consulta la latencia rápida' 
+                    },
+                    { 
+                        name: '🧪 Pruebas', 
+                        value: '`.bienvenida` - Muestra un ejemplo del mensaje de bienvenida\n`.boost` - Muestra un ejemplo del mensaje de boost' 
+                    }
+                )
+                .setFooter({ text: 'LikeKaponi Bot • Sistema de Administración' })
+                .setTimestamp();
+
+            return message.channel.send({ embeds: [helpEmbed] });
+        }
 
         // Comando kaponi ping
         if (subCommand === 'ping') {
