@@ -121,8 +121,8 @@ function getRandomBananaSize() {
     return Math.floor(randomWeighted * (max - min + 1)) + min;
 }
 
-// Registro de Slash Command /embed
-const commands = [
+// Definición de Comandos de Slash
+const slashCommands = [
     new SlashCommandBuilder()
         .setName('embed')
         .setDescription('Crea y envía un embed personalizado en el canal')
@@ -149,22 +149,86 @@ const commands = [
         .addStringOption(option => 
             option.setName('footer')
                 .setDescription('Texto al pie del embed')
-                .setRequired(false))
-];
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('ban')
+        .setDescription('Banea a un usuario del servidor')
+        .addUserOption(option => 
+            option.setName('usuario')
+                .setDescription('El usuario que deseas banear')
+                .setRequired(true))
+        .addStringOption(option => 
+            option.setName('razon')
+                .setDescription('Motivo de la sanción')
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('mute')
+        .setDescription('Silencia temporalmente a un usuario')
+        .addUserOption(option => 
+            option.setName('usuario')
+                .setDescription('El usuario a silenciar')
+                .setRequired(true))
+        .addStringOption(option => 
+            option.setName('tiempo')
+                .setDescription('Duración del mute (ejemplo: 1s, 5m, 2h, 1d)')
+                .setRequired(true))
+        .addStringOption(option => 
+            option.setName('razon')
+                .setDescription('Motivo del mute')
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('kick')
+        .setDescription('Expulsa a un usuario del servidor')
+        .addUserOption(option => 
+            option.setName('usuario')
+                .setDescription('El usuario que deseas expulsar')
+                .setRequired(true))
+        .addStringOption(option => 
+            option.setName('razon')
+                .setDescription('Motivo de la expulsión')
+                .setRequired(false)),
+    new SlashCommandBuilder()
+        .setName('purge')
+        .setDescription('Elimina mensajes en masa')
+        .addIntegerOption(option => 
+            option.setName('cantidad')
+                .setDescription('Número de mensajes a borrar (1 a 100)')
+                .setRequired(true))
+].map(cmd => cmd.toJSON());
 
 client.once('ready', async () => {
     console.log(`Conectado como ${client.user.tag}`);
 
+    // Registro rápido de Slash Commands en todos los servidores conectados
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
     try {
         await rest.put(
             Routes.applicationCommands(client.user.id),
-            { body: commands },
+            { body: slashCommands }
         );
-        console.log('Comando /embed registrado globalmente.');
+
+        client.guilds.cache.forEach(async (guild) => {
+            await rest.put(
+                Routes.applicationGuildCommands(client.user.id, guild.id),
+                { body: slashCommands }
+            ).catch(() => {});
+        });
+
+        console.log('Comandos Slash registrados exitosamente.');
     } catch (error) {
         console.error('Error al registrar Slash Commands:', error);
     }
+});
+
+// Registrar comandos Slash automáticamente en servidores nuevos
+client.on('guildCreate', async (guild) => {
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+    try {
+        await rest.put(
+            Routes.applicationGuildCommands(client.user.id, guild.id),
+            { body: slashCommands }
+        );
+    } catch (err) {}
 });
 
 // ================= LOGS DE VOZ =================
@@ -187,7 +251,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     } 
     else if (oldState.channelId && !newState.channelId) {
         const embed = new EmbedBuilder()
-            .setTitle('🔇 Voz: Usuario desconectado')
+            .setTitle('FF Voz: Usuario desconectado')
             .setColor('#e74c3c')
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .addFields(
@@ -235,7 +299,7 @@ client.on('guildMemberAdd', async (member) => {
     const logEmbed = new EmbedBuilder()
         .setTitle('📥 Usuario unido')
         .setColor('#2ecc71')
-        .setDescription(`**${member.user.tag}** se ha unido al servidor.`)
+        .setDescription(`**${member.user.tag}** (\`${member.id}\`) se ha unido al servidor.`)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .addFields({ name: '🆔 ID', value: `\`${member.id}\``, inline: true })
         .setTimestamp();
@@ -248,41 +312,41 @@ client.on('guildMemberAdd', async (member) => {
         const welcomeEmbed = new EmbedBuilder()
             .setTitle('👋 ¡Bienvenido a la comunidad!')
             .setColor('#f1c40f')
-            .setDescription(`¡Hola ${member}! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
+            .setDescription(`¡Hola ${member} (**${member.user.tag}**)! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .setImage(WELCOME_IMAGE_URL)
-            .setFooter({ text: 'LikeKaponi Community' })
+            .setFooter({ text: `Usuario: ${member.user.tag}` })
             .setTimestamp();
 
-        welcomeChannel.send({ content: `¡Bienvenido ${member}!`, embeds: [welcomeEmbed] }).catch(() => {});
+        welcomeChannel.send({ content: `¡Bienvenido ${member} (**${member.user.tag}**)!`, embeds: [welcomeEmbed] }).catch(() => {});
     }
 });
 
 client.on('guildMemberRemove', async (member) => {
-    // Log de salida en el canal de administración
+    // Log de salida
     const logEmbed = new EmbedBuilder()
         .setTitle('📤 Usuario salido')
         .setColor('#e74c3c')
-        .setDescription(`**${member.user.tag}** ha salido del servidor.`)
+        .setDescription(`**${member.user.tag}** (\`${member.id}\`) ha salido del servidor.`)
         .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
         .addFields({ name: '🆔 ID', value: `\`${member.id}\``, inline: true })
         .setTimestamp();
 
     await sendLog(member.guild, logEmbed);
 
-    // Mensaje automático de despedida en el canal específico
+    // Mensaje automático de despedida
     const leaveChannel = member.guild.channels.cache.get(LEAVE_CHANNEL_ID);
     if (leaveChannel) {
         const leaveEmbed = new EmbedBuilder()
             .setTitle('👋 ¡Hasta pronto!')
             .setColor('#e74c3c')
-            .setDescription(`**${member.user.tag}** ha decidido dejar el servidor.\n\nLe agradecemos por el tiempo que compartió con nosotros en la comunidad. Le deseamos muchísimo éxito en todos sus proyectos futuros y esperamos que le vaya excelente en su camino. ¡Las puertas siempre estarán abiertas si decide volver!`)
+            .setDescription(`**${member.user.tag}** (${member}) ha decidido dejar el servidor.\n\nLe agradecemos por el tiempo que compartió con nosotros en la comunidad. Le deseamos muchísimo éxito en todos sus proyectos futuros y esperamos que le vaya excelente en su camino. ¡Las puertas siempre estarán abiertas si decide volver!`)
             .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
             .setImage(LEAVE_IMAGE_URL)
-            .setFooter({ text: 'LikeKaponi Community' })
+            .setFooter({ text: `Usuario: ${member.user.tag}` })
             .setTimestamp();
 
-        leaveChannel.send({ content: `Un usuario nos ha dejado: **${member.user.tag}**`, embeds: [leaveEmbed] }).catch(() => {});
+        leaveChannel.send({ content: `Un usuario nos ha dejado: **${member.user.tag}** (${member})`, embeds: [leaveEmbed] }).catch(() => {});
     }
 });
 
@@ -291,7 +355,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
         const logEmbed = new EmbedBuilder()
             .setTitle('🚀 Nuevo Boost')
             .setColor('#9b59b6')
-            .setDescription(`**${newMember.user.tag}** ha potenciado el servidor. ¡Gracias por tu apoyo!`)
+            .setDescription(`**${newMember.user.tag}** (${newMember}) ha potenciado el servidor. ¡Gracias por tu apoyo!`)
             .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
             .setTimestamp();
 
@@ -302,12 +366,12 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
             const boostEmbed = new EmbedBuilder()
                 .setTitle('🚀 ¡Un nuevo Boost ha llegado!')
                 .setColor('#9b59b6')
-                .setDescription(`¡Muchísimas gracias a **${newMember.user.tag}** por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
+                .setDescription(`¡Muchísimas gracias a **${newMember.user.tag}** (${newMember}) por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
                 .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
-                .setFooter({ text: 'LikeKaponi Community' })
+                .setFooter({ text: `Booster: ${newMember.user.tag}` })
                 .setTimestamp();
 
-            boostChannel.send({ content: `¡Gracias por el boost ${newMember}! 🚀`, embeds: [boostEmbed] }).catch(() => {});
+            boostChannel.send({ content: `¡Gracias por el boost ${newMember} (**${newMember.user.tag}**)! 🚀`, embeds: [boostEmbed] }).catch(() => {});
         }
     }
 });
@@ -349,7 +413,7 @@ client.on('messageDelete', async (message) => {
     await sendLog(message.guild, embed);
 });
 
-// ================= COMANDOS =================
+// ================= COMANDOS POR MENSAJE DE TEXTO =================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
@@ -369,40 +433,43 @@ client.on('messageCreate', async (message) => {
         const embed = new EmbedBuilder()
             .setTitle('👋 ¡Bienvenido a la comunidad!')
             .setColor('#f1c40f')
-            .setDescription(`¡Hola ${message.author}! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
+            .setDescription(`¡Hola ${message.author} (**${message.author.tag}**)! Nos alegra mucho tenerte por aquí.\n\nEcha un vistazo a los canales principales, respeta las reglas de la comunidad y siéntete libre de charlar con todos. ¡Esperamos que la pases genial y disfrutes tu estancia con nosotros!`)
             .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
             .setImage(WELCOME_IMAGE_URL)
-            .setFooter({ text: 'LikeKaponi Community' })
+            .setFooter({ text: `Usuario: ${message.author.tag}` })
             .setTimestamp();
-        return message.channel.send({ content: `¡Bienvenido ${message.author}!`, embeds: [embed] });
+        return message.channel.send({ content: `¡Bienvenido ${message.author} (**${message.author.tag}**)!`, embeds: [embed] });
     }
 
     if (command === '.despedida') {
         const embed = new EmbedBuilder()
             .setTitle('👋 ¡Hasta pronto!')
             .setColor('#e74c3c')
-            .setDescription(`**${message.author.tag}** ha decidido dejar el servidor.\n\nLe agradecemos por el tiempo que compartió con nosotros en la comunidad. Le deseamos muchísimo éxito en todos sus proyectos futuros y esperamos que le vaya excelente en su camino. ¡Las puertas siempre estarán abiertas si decide volver!`)
+            .setDescription(`**${message.author.tag}** (${message.author}) ha decidido dejar el servidor.\n\nLe agradecemos por el tiempo que compartió con nosotros en la comunidad. Le deseamos muchísimo éxito en todos sus proyectos futuros y esperamos que le vaya excelente en su camino. ¡Las puertas siempre estarán abiertas si decide volver!`)
             .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
             .setImage(LEAVE_IMAGE_URL)
-            .setFooter({ text: 'LikeKaponi Community' })
+            .setFooter({ text: `Usuario: ${message.author.tag}` })
             .setTimestamp();
-        return message.channel.send({ content: `Un usuario nos ha dejado: **${message.author.tag}**`, embeds: [embed] });
+        return message.channel.send({ content: `Un usuario nos ha dejado: **${message.author.tag}** (${message.author})`, embeds: [embed] });
     }
 
     if (command === '.boost') {
         const embed = new EmbedBuilder()
             .setTitle('🚀 ¡Un nuevo Boost ha llegado!')
             .setColor('#9b59b6')
-            .setDescription(`¡Muchísimas gracias a **${message.author.tag}** por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
+            .setDescription(`¡Muchísimas gracias a **${message.author.tag}** (${message.author}) por potenciar el servidor!\n\nTu apoyo ayuda enormemente a mejorar la calidad de la comunidad y desbloquear ventajas exclusivas para todos. ¡Disfruta de tus beneficios y gracias por formar parte de esto!`)
             .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-            .setFooter({ text: 'LikeKaponi Community' })
+            .setFooter({ text: `Booster: ${message.author.tag}` })
             .setTimestamp();
-        return message.channel.send({ content: `¡Gracias por el boost ${message.author}! 🚀`, embeds: [embed] });
+        return message.channel.send({ content: `¡Gracias por el boost ${message.author} (**${message.author.tag}**)! 🚀`, embeds: [embed] });
     }
 
     // Setup de tickets
     if (command === '!ticket-setup') {
-        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        const isOwner = message.author.id === message.guild.ownerId;
+        const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
+
+        if (!isOwner && !isAdmin) {
             return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
         }
 
@@ -429,7 +496,11 @@ client.on('messageCreate', async (message) => {
 
         // Comando kaponi purge
         if (subCommand === 'purge') {
-            if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+            const isOwner = message.author.id === message.guild.ownerId;
+            const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
+            const hasManageMsgs = message.member.permissions.has(PermissionFlagsBits.ManageMessages);
+
+            if (!isOwner && !isAdmin && !hasManageMsgs) {
                 return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
             }
 
@@ -463,7 +534,10 @@ client.on('messageCreate', async (message) => {
 
         // Comando kaponi helpadmin
         if (subCommand === 'helpadmin') {
-            if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            const isOwner = message.author.id === message.guild.ownerId;
+            const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
+
+            if (!isOwner && !isAdmin) {
                 return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
             }
 
@@ -473,8 +547,8 @@ client.on('messageCreate', async (message) => {
                 .setDescription('Lista completa de comandos disponibles en el bot:')
                 .addFields(
                     { 
-                        name: '🛡️ Moderación / Administración', 
-                        value: '`kaponi ban [usuario] [razón]` - Banea a un usuario\n`kaponi mute [usuario] [tiempo] [razón]` - Silencia temporalmente (ej. 1s, 5m, 2h, 1d)\n`kaponi kick [usuario] [razón]` - Expulsa a un usuario\n`kaponi purge [1-100]` - Borra masivamente hasta 100 mensajes\n`!ticket-setup` - Despliega el panel para abrir tickets\n`/embed` - Comando de Slash para crear embeds personalizados' 
+                        name: '🛡️ Moderación / Administración (Comandos y Slash)', 
+                        value: '`/ban` o `kaponi ban [usuario] [razón]` - Banea a un usuario\n`/mute` o `kaponi mute [usuario] [tiempo] [razón]` - Silencia temporalmente (ej. 1s, 5m, 2h, 1d)\n`/kick` o `kaponi kick [usuario] [razón]` - Expulsa a un usuario\n`/purge` o `kaponi purge [1-100]` - Borra masivamente hasta 100 mensajes\n`!ticket-setup` - Despliega el panel para abrir tickets\n`/embed` - Comando de Slash para crear embeds personalizados' 
                     },
                     { 
                         name: '🍌 Entretenimiento', 
@@ -503,7 +577,7 @@ client.on('messageCreate', async (message) => {
             return msg.edit(`🏓 Pong! Latencia del bot: **${latency}ms** | API: **${apiLatency}ms**`);
         }
 
-        // Comando kaponi banana (de 1 a 32cm)
+        // Comando kaponi banana
         if (subCommand === 'banana') {
             const targetUser = message.mentions.users.first() || message.author;
             const size = getRandomBananaSize();
@@ -511,7 +585,7 @@ client.on('messageCreate', async (message) => {
             const embed = new EmbedBuilder()
                 .setTitle('🍌 Tamaño de Banana')
                 .setColor('#f1c40f')
-                .setDescription(`La banana de ${targetUser} mide **${size}cm** 🍌`)
+                .setDescription(`La banana de ${targetUser} (**${targetUser.tag}**) mide **${size}cm** 🍌`)
                 .setImage('https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&auto=format&fit=crop&q=60');
 
             return message.channel.send({ embeds: [embed] });
@@ -521,13 +595,14 @@ client.on('messageCreate', async (message) => {
             return;
         }
 
-        // Verificación de permisos
-        const hasAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
+        // Comprobación de permisos absoluta
+        const isOwner = message.author.id === message.guild.ownerId;
+        const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
         const requiredPermission = 
             subCommand === 'ban' ? PermissionFlagsBits.BanMembers :
             subCommand === 'kick' ? PermissionFlagsBits.KickMembers : PermissionFlagsBits.ModerateMembers;
 
-        if (!hasAdmin && !message.member.permissions.has(requiredPermission)) {
+        if (!isOwner && !isAdmin && !message.member.permissions.has(requiredPermission)) {
             return message.reply('porque intentas usar comandos de administracion bro, te voy a tocar');
         }
 
@@ -547,7 +622,7 @@ client.on('messageCreate', async (message) => {
                 if (targetMember.id === message.guild.ownerId) {
                     return message.reply('❌ No se puede banear a este usuario: Es el dueño del servidor.');
                 }
-                if (targetMember.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
+                if (!isOwner && !isAdmin && targetMember.roles.highest.position >= message.member.roles.highest.position) {
                     return message.reply('❌ No se pudo banear al usuario: Su rol es igual o superior al tuyo en la jerarquía.');
                 }
                 if (!targetMember.bannable) {
@@ -575,7 +650,7 @@ client.on('messageCreate', async (message) => {
             }
         }
 
-        // --- MUTE / TIMEOUT ---
+        // --- MUTE ---
         else if (subCommand === 'mute') {
             if (!targetMember) {
                 return message.reply('⚠️ No se encontró al usuario en el servidor. Para aplicar mute, el usuario debe estar presente.');
@@ -592,7 +667,7 @@ client.on('messageCreate', async (message) => {
             if (targetMember.id === message.guild.ownerId) {
                 return message.reply('❌ No se puede silenciar a este usuario: Es el dueño del servidor.');
             }
-            if (targetMember.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
+            if (!isOwner && !isAdmin && targetMember.roles.highest.position >= message.member.roles.highest.position) {
                 return message.reply('❌ No se pudo silenciar al usuario: Posee un rol igual o superior al tuyo.');
             }
             if (!targetMember.moderatable) {
@@ -630,7 +705,7 @@ client.on('messageCreate', async (message) => {
             if (targetMember.id === message.guild.ownerId) {
                 return message.reply('❌ No se puede expulsar a este usuario: Es el dueño del servidor.');
             }
-            if (targetMember.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
+            if (!isOwner && !isAdmin && targetMember.roles.highest.position >= message.member.roles.highest.position) {
                 return message.reply('❌ No se pudo expulsar al usuario: Su rol es igual o superior al tuyo.');
             }
             if (!targetMember.kickable) {
@@ -658,11 +733,16 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ================= INTERACCIONES (SLASH COMMAND /EMBED Y TICKETS) =================
+// ================= INTERACCIONES (SLASH COMMANDS Y TICKETS) =================
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
+        const isOwner = interaction.user.id === interaction.guild.ownerId;
+        const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+
+        // /EMBED
         if (interaction.commandName === 'embed') {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+            const hasManageMsgs = interaction.member.permissions.has(PermissionFlagsBits.ManageMessages);
+            if (!isOwner && !isAdmin && !hasManageMsgs) {
                 return interaction.reply({ content: 'porque intentas usar comandos de administracion bro, te voy a tocar', ephemeral: true });
             }
 
@@ -676,7 +756,6 @@ client.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder().setDescription(descripcion);
 
             if (titulo) embed.setTitle(titulo);
-            
             if (/^#([0-9A-F]{3}){1,2}$/i.test(color)) {
                 embed.setColor(color);
             } else {
@@ -692,8 +771,177 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.channel.send(payload);
             return interaction.reply({ content: '✅ Embed enviado correctamente.', ephemeral: true });
         }
+
+        // /BAN
+        if (interaction.commandName === 'ban') {
+            const hasBanPerm = interaction.member.permissions.has(PermissionFlagsBits.BanMembers);
+            if (!isOwner && !isAdmin && !hasBanPerm) {
+                return interaction.reply({ content: 'porque intentas usar comandos de administracion bro, te voy a tocar', ephemeral: true });
+            }
+
+            const targetUser = interaction.options.getUser('usuario');
+            const reason = interaction.options.getString('razon') || 'Sin razón especificada';
+            const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+
+            if (targetMember) {
+                if (targetMember.id === interaction.guild.ownerId) {
+                    return interaction.reply({ content: '❌ No se puede banear al dueño del servidor.', ephemeral: true });
+                }
+                if (!isOwner && !isAdmin && targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+                    return interaction.reply({ content: '❌ Su rol es igual o superior al tuyo en la jerarquía.', ephemeral: true });
+                }
+                if (!targetMember.bannable) {
+                    return interaction.reply({ content: '❌ El rol del bot está por debajo del rol del usuario.', ephemeral: true });
+                }
+            }
+
+            try {
+                await interaction.guild.members.ban(targetUser.id, { reason });
+                await interaction.reply({ content: `🔨 Usuario **${targetUser.tag}** baneado correctamente.` });
+
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('🔨 Sanción: Ban (Slash)')
+                    .setColor('#c0392b')
+                    .addFields(
+                        { name: '👤 Usuario', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
+                        { name: '🛡️ Moderador', value: interaction.user.tag, inline: true },
+                        { name: '📄 Razón', value: reason, inline: false }
+                    )
+                    .setTimestamp();
+                await sendLog(interaction.guild, logEmbed);
+            } catch (err) {
+                await interaction.reply({ content: `❌ Error al banear: ${err.message}`, ephemeral: true });
+            }
+        }
+
+        // /MUTE
+        if (interaction.commandName === 'mute') {
+            const hasModPerm = interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers);
+            if (!isOwner && !isAdmin && !hasModPerm) {
+                return interaction.reply({ content: 'porque intentas usar comandos de administracion bro, te voy a tocar', ephemeral: true });
+            }
+
+            const targetUser = interaction.options.getUser('usuario');
+            const timeArg = interaction.options.getString('tiempo');
+            const duration = parseTime(timeArg);
+            const reason = interaction.options.getString('razon') || 'Sin razón especificada';
+
+            if (!duration) {
+                return interaction.reply({ content: '⚠️ Formato de tiempo inválido (ej. `1s`, `5m`, `2h`, `1d`).', ephemeral: true });
+            }
+
+            const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+            if (!targetMember) {
+                return interaction.reply({ content: '⚠️ El usuario debe estar en el servidor para silenciarlo.', ephemeral: true });
+            }
+
+            if (targetMember.id === interaction.guild.ownerId) {
+                return interaction.reply({ content: '❌ No se puede silenciar al dueño del servidor.', ephemeral: true });
+            }
+            if (!isOwner && !isAdmin && targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+                return interaction.reply({ content: '❌ Posee un rol igual o superior al tuyo.', ephemeral: true });
+            }
+            if (!targetMember.moderatable) {
+                return interaction.reply({ content: '❌ El rol del bot está por debajo del rol de este usuario.', ephemeral: true });
+            }
+
+            try {
+                await targetMember.timeout(duration, reason);
+                await interaction.reply({ content: `🤐 Usuario **${targetUser.tag}** silenciado por ${timeArg}.` });
+
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('🤐 Sanción: Mute (Slash)')
+                    .setColor('#d35400')
+                    .addFields(
+                        { name: '👤 Usuario', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
+                        { name: '🛡️ Moderador', value: interaction.user.tag, inline: true },
+                        { name: '⏳ Duración', value: timeArg, inline: true },
+                        { name: '📄 Razón', value: reason, inline: false }
+                    )
+                    .setTimestamp();
+                await sendLog(interaction.guild, logEmbed);
+            } catch (err) {
+                await interaction.reply({ content: `❌ Error al silenciar: ${err.message}`, ephemeral: true });
+            }
+        }
+
+        // /KICK
+        if (interaction.commandName === 'kick') {
+            const hasKickPerm = interaction.member.permissions.has(PermissionFlagsBits.KickMembers);
+            if (!isOwner && !isAdmin && !hasKickPerm) {
+                return interaction.reply({ content: 'porque intentas usar comandos de administracion bro, te voy a tocar', ephemeral: true });
+            }
+
+            const targetUser = interaction.options.getUser('usuario');
+            const reason = interaction.options.getString('razon') || 'Sin razón especificada';
+            const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+
+            if (!targetMember) {
+                return interaction.reply({ content: '⚠️ No se encontró al usuario en el servidor.', ephemeral: true });
+            }
+
+            if (targetMember.id === interaction.guild.ownerId) {
+                return interaction.reply({ content: '❌ No se puede expulsar al dueño del servidor.', ephemeral: true });
+            }
+            if (!isOwner && !isAdmin && targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+                return interaction.reply({ content: '❌ Su rol es igual o superior al tuyo en la jerarquía.', ephemeral: true });
+            }
+            if (!targetMember.kickable) {
+                return interaction.reply({ content: '❌ El rol del bot está por debajo del rol de este usuario.', ephemeral: true });
+            }
+
+            try {
+                await targetMember.kick(reason);
+                await interaction.reply({ content: `👢 Usuario **${targetUser.tag}** expulsado correctamente.` });
+
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('👢 Sanción: Kick (Slash)')
+                    .setColor('#e67e22')
+                    .addFields(
+                        { name: '👤 Usuario', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
+                        { name: '🛡️ Moderador', value: interaction.user.tag, inline: true },
+                        { name: '📄 Razón', value: reason, inline: false }
+                    )
+                    .setTimestamp();
+                await sendLog(interaction.guild, logEmbed);
+            } catch (err) {
+                await interaction.reply({ content: `❌ Error al expulsar: ${err.message}`, ephemeral: true });
+            }
+        }
+
+        // /PURGE
+        if (interaction.commandName === 'purge') {
+            const hasManageMsgs = interaction.member.permissions.has(PermissionFlagsBits.ManageMessages);
+            if (!isOwner && !isAdmin && !hasManageMsgs) {
+                return interaction.reply({ content: 'porque intentas usar comandos de administracion bro, te voy a tocar', ephemeral: true });
+            }
+
+            const amount = interaction.options.getInteger('cantidad');
+            if (amount < 1 || amount > 100) {
+                return interaction.reply({ content: '⚠️ Especifica un número válido entre 1 y 100.', ephemeral: true });
+            }
+
+            try {
+                const deleted = await interaction.channel.bulkDelete(amount, true);
+                await interaction.reply({ content: `🧹 Se han borrado **${deleted.size}** mensajes correctamente.`, ephemeral: true });
+
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('🧹 Purga de Mensajes (Slash)')
+                    .setColor('#e67e22')
+                    .addFields(
+                        { name: '📌 Canal', value: `<#${interaction.channel.id}>`, inline: true },
+                        { name: '🔢 Cantidad', value: `${deleted.size} mensajes`, inline: true },
+                        { name: '🛡️ Moderador', value: interaction.user.tag, inline: false }
+                    )
+                    .setTimestamp();
+                await sendLog(interaction.guild, logEmbed);
+            } catch (err) {
+                await interaction.reply({ content: `❌ No se pudieron borrar los mensajes: ${err.message}`, ephemeral: true });
+            }
+        }
     }
 
+    // Interacciones de Botones de Tickets
     if (interaction.isButton()) {
         if (interaction.customId === 'open_ticket') {
             const guild = interaction.guild;
